@@ -65,6 +65,11 @@ st.markdown("""
         border: none;
         color: white;
     }
+
+    /* Force Table Headers & Cells Alignment */
+    div[data-testid="stDataFrame"] th {
+        text-align: center !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -186,17 +191,18 @@ def calculate_3block_metrics(ticker):
             else:
                 prediction = "📉 Mild Bearish Bias"
 
+            # Format angka dengan pemisah ribuan (,) dan desimal yang terkunci
             return {
                 "Pair": pair_clean,
                 "Status / Projection": prediction,
                 "Avg Score": round(avg_score, 2),
-                "S3": f"{s3:.{digits}f}",
-                "S2": f"{s2:.{digits}f}",
-                "S1": f"{s1:.{digits}f}",
-                "Pivot": f"{pivot:.{digits}f}",
-                "R1": f"{r1:.{digits}f}",
-                "R2": f"{r2:.{digits}f}",
-                "R3": f"{r3:.{digits}f}",
+                "S3": f"{s3:,.{digits}f}",
+                "S2": f"{s2:,.{digits}f}",
+                "S1": f"{s1:,.{digits}f}",
+                "Pivot": f"{pivot:,.{digits}f}",
+                "R1": f"{r1:,.{digits}f}",
+                "R2": f"{r2:,.{digits}f}",
+                "R3": f"{r3:,.{digits}f}",
                 "Block 1 (0-4h) %": round(b1_pct, 2),
                 "Block 2 (4-8h) %": round(b2_pct, 2),
                 "Block 3 (8-12h) %": round(b3_pct, 2)
@@ -271,19 +277,33 @@ st.markdown("<br>", unsafe_allow_html=True)
 st.subheader("📋 Assets Status & 12H Pivot Levels")
 
 if not df.empty:
-    # Select columns to display in dashboard
+    # 1. Pilih kolom yang ingin ditampilkan (kolom 'Avg Score' dibuang)
     cols_to_display = [
         "Pair", "Status / Projection", 
-        "S3", "S2", "S1", "Pivot", "R1", "R2", "R3", 
-        "Avg Score"
+        "S3", "S2", "S1", "Pivot", "R1", "R2", "R3"
     ]
     df_display = df[cols_to_display].copy()
 
-    # Add order index column (#) starting from 1
+    # 2. Tambahkan kolom Nomor Urut (#)
     df_display.insert(0, "#", range(1, len(df_display) + 1))
+
+    # 3. Konfigurasi perataan sel & judul kolom via Column Configuration
+    column_config = {
+        "#": st.column_config.Column("#", alignment="center"),
+        "Pair": st.column_config.Column("Pair", alignment="center"),
+        "Status / Projection": st.column_config.Column("Status / Projection", alignment="center"),
+        "S3": st.column_config.Column("S3", alignment="center"),
+        "S2": st.column_config.Column("S2", alignment="center"),
+        "S1": st.column_config.Column("S1", alignment="center"),
+        "Pivot": st.column_config.Column("Pivot", alignment="center"),
+        "R1": st.column_config.Column("R1", alignment="center"),
+        "R2": st.column_config.Column("R2", alignment="center"),
+        "R3": st.column_config.Column("R3", alignment="center"),
+    }
 
     st.dataframe(
         df_display, 
+        column_config=column_config,
         use_container_width=True, 
         height=680,
         hide_index=True
