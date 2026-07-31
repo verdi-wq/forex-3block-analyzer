@@ -115,7 +115,7 @@ else:
 # --- HELPER FUNCTIONS ---
 def clean_pair_name(ticker):
     if ticker == "GC=F":
-        return "XAUUSD (GOLD)"
+        return "XAUUSD"
     elif ticker == "BTC-USD":
         return "BTCUSD"
     return ticker.replace("=X", "")
