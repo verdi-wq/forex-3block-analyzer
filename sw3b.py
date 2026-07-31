@@ -10,7 +10,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM STYLING (Modern UI) ---
+# --- CUSTOM STYLING (Fix Header & Cell Alignment to Center) ---
 st.markdown("""
 <style>
     /* Global Styles */
@@ -66,9 +66,18 @@ st.markdown("""
         color: white;
     }
 
-    /* Force Table Headers & Cells Alignment */
-    div[data-testid="stDataFrame"] th {
+    /* FORCE HEADER & CELL CENTER ALIGNMENT */
+    div[data-testid="stDataFrame"] [data-testid="stHeader"] {
+        justify-content: center !important;
         text-align: center !important;
+    }
+    div[data-testid="stDataFrame"] [role="columnheader"] {
+        justify-content: center !important;
+        text-align: center !important;
+    }
+    div[data-testid="stDataFrame"] [role="columnheader"] span {
+        text-align: center !important;
+        width: 100%;
     }
 </style>
 """, unsafe_allow_html=True)
