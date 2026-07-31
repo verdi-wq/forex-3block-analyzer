@@ -2,18 +2,82 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-# --- CONFIGURATION PAGE ---
+# --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="3-Block H4 Strength Analyzer",
     page_icon="📊",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-st.title("📊 Strength & Weakness Dashboard")
-st.caption("Analisis Momentum 12 Jam Terakhir")
+# --- CUSTOM STYLING (Modern UI) ---
+st.markdown("""
+<style>
+    /* Global Styles */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    
+    /* Header Styling */
+    .dashboard-header {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        padding: 1.5rem 2rem;
+        border-radius: 12px;
+        color: white;
+        margin-bottom: 1.5rem;
+        border: 1px solid #334155;
+    }
+    .dashboard-header h1 {
+        color: #f8fafc;
+        font-size: 1.8rem;
+        margin: 0;
+        font-weight: 700;
+    }
+    .dashboard-header p {
+        color: #94a3b8;
+        margin: 0.3rem 0 0 0;
+        font-size: 0.95rem;
+    }
+
+    /* Metric Cards */
+    div[data-testid="stMetric"] {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 1rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    /* Primary Accent Color for Buttons */
+    .stButton > button {
+        width: 100%;
+        border-radius: 8px;
+        font-weight: 600;
+        background-color: #2563eb;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        transition: all 0.2s ease;
+    }
+    .stButton > button:hover {
+        background-color: #1d4ed8;
+        border: none;
+        color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# --- HEADER SECTION ---
+st.markdown("""
+<div class="dashboard-header">
+    <h1>📊 Strength & Weakness Dashboard</h1>
+    <p>Momentum & Directional Bias Analysis for the Last 12 Hours (3x H4 Blocks)</p>
+</div>
+""", unsafe_allow_html=True)
 
 # --- SIDEBAR: SETTINGS ---
-st.sidebar.header("⚙️ Pengaturan Asset & Bobot Blok")
+st.sidebar.header("⚙️ Asset & Block Weighting")
 
 TRADING_30_PAIRS = [
     "GC=F", "BTC-USD",
@@ -26,15 +90,22 @@ TRADING_30_PAIRS = [
 ]
 
 selected_tickers = st.sidebar.multiselect(
-    "Pilih Trading Pair(s):",
+    "Select Trading Pair(s):",
     options=TRADING_30_PAIRS,
     default=TRADING_30_PAIRS
 )
 
-st.sidebar.subheader("⚖️ Bobot Masing-Masing Blok")
-w_b1 = st.sidebar.slider("Blok 1 (0-4j lalu - Terbaru) (%)", 0, 100, 50) / 100
-w_b2 = st.sidebar.slider("Blok 2 (4-8j lalu) (%)", 0, 100, 30) / 100
-w_b3 = st.sidebar.slider("Blok 3 (8-12j lalu) (%)", 0, 100, 20) / 100
+st.sidebar.subheader("⚖️ Block Weight Distribution")
+w_b1 = st.sidebar.slider("Block 1 (0-4h ago - Latest) (%)", 0, 100, 50) / 100
+w_b2 = st.sidebar.slider("Block 2 (4-8h ago) (%)", 0, 100, 30) / 100
+w_b3 = st.sidebar.slider("Block 3 (8-12h ago) (%)", 0, 100, 20) / 100
+
+# Normalize weights if total doesn't equal 100%
+total_w = w_b1 + w_b2 + w_b3
+if total_w > 0:
+    w_b1_norm, w_b2_norm, w_b3_norm = w_b1 / total_w, w_b2 / total_w, w_b3 / total_w
+else:
+    w_b1_norm, w_b2_norm, w_b3_norm = 0.5, 0.3, 0.2
 
 # --- HELPER FUNCTIONS ---
 def clean_pair_name(ticker):
@@ -45,93 +116,95 @@ def clean_pair_name(ticker):
     return ticker.replace("=X", "")
 
 def calculate_3block_metrics(ticker):
-    """Menghitung pergerakan % di 3 blok 4-jam secara terpisah dan mengambil rata-ratanya."""
+    """Calculates % performance across 3 distinct 4-hour blocks and computes weighted average score."""
     try:
-        # Unduh data 1H selama 5 hari terakhir
         data = yf.download(ticker, period="5d", interval="1h", progress=False)
         
         if len(data) >= 13:
-            # Ambil seri Close
             close = data['Close']
             if isinstance(close, pd.DataFrame):
                 close = close.iloc[:, 0]
 
-            # Titik-titik harga penutupan (0 = sekarang, -4 = 4j lalu, dst)
             p_now = close.iloc[-1]
             p_4h = close.iloc[-5]
             p_8h = close.iloc[-9]
             p_12h = close.iloc[-13]
 
-            # Hitung % Change per blok 4 jam
-            b1_pct = ((p_now - p_4h) / p_4h) * 100       # Blok 1 (0-4h)
-            b2_pct = ((p_4h - p_8h) / p_8h) * 100       # Blok 2 (4-8h)
-            b3_pct = ((p_8h - p_12h) / p_12h) * 100     # Blok 3 (8-12h)
+            b1_pct = ((p_now - p_4h) / p_4h) * 100       # Block 1 (0-4h)
+            b2_pct = ((p_4h - p_8h) / p_8h) * 100       # Block 2 (4-8h)
+            b3_pct = ((p_8h - p_12h) / p_12h) * 100     # Block 3 (8-12h)
 
-            # Rata-rata terbobot (Weighted Average Score)
-            avg_score = (b1_pct * w_b1) + (b2_pct * w_b2) + (b3_pct * w_b3)
+            avg_score = (b1_pct * w_b1_norm) + (b2_pct * w_b2_norm) + (b3_pct * w_b3_norm)
 
-            # Logika Tren Prediktif Sederhana
+            # --- SOUGHT HIERARCHY LOGIC ---
             if b1_pct > 0 and b2_pct > 0 and b3_pct > 0:
-                prediction = "🚀 Strong Bullish Trend (Konsisten 12j)"
-            elif b1_pct < 0 and b2_pct < 0 and b3_pct < 0:
-                prediction = "🔻 Strong Bearish Trend (Konsisten 12j)"
-            elif b1_pct > 0 and b2_pct < 0 and b3_pct < 0:
-                prediction = "🔄 Bullish Reversal Potential"
+                prediction = "🚀 Strong Bullish Trend"
+            elif avg_score > 0 and not (b1_pct < 0 and b2_pct > 0 and b3_pct > 0):
+                prediction = "📈 Mild Bullish Bias"
             elif b1_pct < 0 and b2_pct > 0 and b3_pct > 0:
                 prediction = "⚠️ Bearish Reversal Potential"
-            elif avg_score > 0:
-                prediction = "📈 Mild Bullish Bias"
+            elif b1_pct > 0 and b2_pct < 0 and b3_pct < 0:
+                prediction = "🔄 Bullish Reversal Potential"
+            elif avg_score <= 0 and not (b1_pct < 0 and b2_pct < 0 and b3_pct < 0):
+                prediction = "📉 Mild Bearish Bias"
+            elif b1_pct < 0 and b2_pct < 0 and b3_pct < 0:
+                prediction = "🔻 Strong Bearish Trend"
             else:
                 prediction = "📉 Mild Bearish Bias"
 
             return {
                 "Pair": clean_pair_name(ticker),
+                "Status / Projection": prediction,
                 "Avg Score": round(avg_score, 2),
-                "Blok 1 (0-4h) %": round(b1_pct, 2),
-                "Blok 2 (4-8h) %": round(b2_pct, 2),
-                "Blok 3 (8-12h) %": round(b3_pct, 2),
-                "Proyeksi/Status": prediction
+                "Block 1 (0-4h) %": round(b1_pct, 2),
+                "Block 2 (4-8h) %": round(b2_pct, 2),
+                "Block 3 (8-12h) %": round(b3_pct, 2)
             }
     except Exception:
         pass
 
     return {
         "Pair": clean_pair_name(ticker),
+        "Status / Projection": "N/A Data",
         "Avg Score": 0.0,
-        "Blok 1 (0-4h) %": 0.0,
-        "Blok 2 (4-8h) %": 0.0,
-        "Blok 3 (8-12h) %": 0.0,
-        "Proyeksi/Status": "N/A Data"
+        "Block 1 (0-4h) %": 0.0,
+        "Block 2 (4-8h) %": 0.0,
+        "Block 3 (8-12h) %": 0.0
     }
 
 # --- MAIN CONTROLLER ---
 if st.button("🔄 Refresh Data Real-Time") or "results_df" not in st.session_state:
-    with st.spinner("Menganalisis 3 Blok H4 untuk 30 Trading Pairs..."):
+    with st.spinner("Analyzing 3x H4 Blocks across selected trading pairs..."):
         results = [calculate_3block_metrics(ticker) for ticker in selected_tickers]
         df_raw = pd.DataFrame(results)
         
         if not df_raw.empty:
-            # 1. Tentukan urutan hirarki status sesuai keinginanmu
+            # Explicit Status Order requested:
+            # 1. Strong Bullish Trend
+            # 2. Mild Bullish Bias
+            # 3. Bearish Reversal Potential
+            # 4. Bullish Reversal Potential
+            # 5. Mild Bearish Bias
+            # 6. Strong Bearish Trend
             status_order = [
-                "🚀 Strong Bullish Trend (Konsisten 12j)",
+                "🚀 Strong Bullish Trend",
                 "📈 Mild Bullish Bias",
-                "🔄 Bullish Reversal Potential",
                 "⚠️ Bearish Reversal Potential",
+                "🔄 Bullish Reversal Potential",
                 "📉 Mild Bearish Bias",
-                "🔻 Strong Bearish Trend (Konsisten 12j)",
+                "🔻 Strong Bearish Trend",
                 "N/A Data"
             ]
             
-            # 2. Ubah kolom Proyeksi/Status menjadi tipe Categorical dengan urutan spesifik
-            df_raw['Proyeksi/Status'] = pd.Categorical(
-                df_raw['Proyeksi/Status'], 
+            df_raw['Status / Projection'] = pd.Categorical(
+                df_raw['Status / Projection'], 
                 categories=status_order, 
                 ordered=True
             )
             
-            # 3. Urutkan berdasarkan Status (sesuai urutan hirarki) lalu Avg Score (tertinggi ke terendah)
+            # Sort by Status hierarchy first, then highest Avg Score
             df_sorted = df_raw.sort_values(
-                by=["Proyeksi/Status", "Avg Score"], 
+                by=["Status / Projection", "Avg Score"], 
                 ascending=[True, False]
             ).reset_index(drop=True)
             
@@ -141,48 +214,68 @@ if st.button("🔄 Refresh Data Real-Time") or "results_df" not in st.session_st
 
 df = st.session_state.results_df
 
-# --- DISPLAY METRICS & TABLE ---
-st.subheader("📌 Ringkasan Top & Lowest Score")
-
-if not df.empty:
+# --- SUMMARY METRICS SECTION ---
+if not df.empty and len(df[df['Status / Projection'] != 'N/A Data']) > 0:
     top_asset = df.iloc[0]
     worst_asset = df.iloc[-1]
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("🏆 Skor Rata-Rata Terkuat", top_asset['Pair'], f"{top_asset['Avg Score']} pts")
-    with col2:
-        st.metric("🔻 Skor Rata-Rata Terlemah", worst_asset['Pair'], f"{worst_asset['Avg Score']} pts")
+    bullish_count = len(df[df['Avg Score'] > 0])
+    bearish_count = len(df[df['Avg Score'] < 0])
 
-st.markdown("---")
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric("🏆 Strongest Asset", top_asset['Pair'], f"{top_asset['Avg Score']:+.2f}%")
+    with m2:
+        st.metric("🔻 Weakest Asset", worst_asset['Pair'], f"{worst_asset['Avg Score']:+.2f}%")
+    with m3:
+        st.metric("🟢 Bullish Pairs", f"{bullish_count} Pairs", f"{round(bullish_count/len(df)*100)}% of total")
+    with m4:
+        st.metric("🔴 Bearish Pairs", f"{bearish_count} Pairs", f"{round(bearish_count/len(df)*100)}% of total")
 
-def color_surfaces(val):
-    if isinstance(val, (int, float)):
-        color = '#d4edda' if val > 0 else '#f8d7da' if val < 0 else '#ffffff'
-        text_color = '#155724' if val > 0 else '#721c24' if val < 0 else '#000000'
-        return f'background-color: {color}; color: {text_color}'
-    return ''
+st.markdown("<br>", unsafe_allow_html=True)
 
-st.subheader("📋 Matriks 3 Blok H4")
+# --- TABLE STYLING FUNCTION ---
+def style_dataframe(df_in):
+    def highlight_values(val):
+        if isinstance(val, (int, float)):
+            if val > 0:
+                return 'background-color: #dcfce7; color: #166534; font-weight: 600;'
+            elif val < 0:
+                return 'background-color: #fee2e2; color: #991b1b; font-weight: 600;'
+            return 'color: #64748b;'
+        return ''
+
+    numeric_cols = ["Avg Score", "Block 1 (0-4h) %", "Block 2 (4-8h) %", "Block 3 (8-12h) %"]
+    
+    styler = df_in.style
+    if hasattr(styler, "map"):
+        styler = styler.map(highlight_values, subset=numeric_cols)
+    else:
+        styler = styler.applymap(highlight_values, subset=numeric_cols)
+        
+    return styler.format({col: "{:+.2f}%" for col in numeric_cols})
+
+# --- DATA TABLE DISPLAY ---
+st.subheader("📋 3-Block H4 Matrix")
 
 if not df.empty:
-    # --- MENGATUR URUTAN KOLOM TABEL ---
     column_order = [
         "Pair", 
-        "Proyeksi/Status", 
+        "Status / Projection", 
         "Avg Score", 
-        "Blok 1 (0-4h) %", 
-        "Blok 2 (4-8h) %", 
-        "Blok 3 (8-12h) %"
+        "Block 1 (0-4h) %", 
+        "Block 2 (4-8h) %", 
+        "Block 3 (8-12h) %"
     ]
     df_display = df[column_order]
+    styled_df = style_dataframe(df_display)
 
-    # Penerapan warna hanya pada kolom angka
-    if hasattr(df_display.style, "map"):
-        styled_df = df_display.style.map(color_surfaces, subset=["Avg Score", "Blok 1 (0-4h) %", "Blok 2 (4-8h) %", "Blok 3 (8-12h) %"])
-    else:
-        styled_df = df_display.style.applymap(color_surfaces, subset=["Avg Score", "Blok 1 (0-4h) %", "Blok 2 (4-8h) %", "Blok 3 (8-12h) %"])
-
-    st.dataframe(styled_df, use_container_width=True, height=650)
+    # Full width dataframe display without side panels
+    st.dataframe(
+        styled_df, 
+        use_container_width=True, 
+        height=680,
+        hide_index=True
+    )
 else:
-    st.dataframe(df, use_container_width=True, height=650)
+    st.info("No data to display. Please click 'Refresh Data Real-Time'.")
