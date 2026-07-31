@@ -256,23 +256,18 @@ def style_dataframe(df_in):
     return styler.format({col: "{:+.2f}%" for col in numeric_cols})
 
 # --- DATA TABLE DISPLAY ---
-st.subheader("📋 3-Block H4 Matrix")
+st.subheader("📋 Assets Status Summary")
 
 if not df.empty:
-    column_order = [
-        "Pair", 
-        "Status / Projection", 
-        "Avg Score", 
-        "Block 1 (0-4h) %", 
-        "Block 2 (4-8h) %", 
-        "Block 3 (8-12h) %"
-    ]
-    df_display = df[column_order]
-    styled_df = style_dataframe(df_display)
+    # 1. Pilih hanya kolom Pair dan Status / Projection
+    df_display = df[["Pair", "Status / Projection"]].copy()
 
-    # Full width dataframe display without side panels
+    # 2. Tambahkan kolom Nomor Urut (#) mulai dari angka 1
+    df_display.insert(0, "#", range(1, len(df_display) + 1))
+
+    # 3. Tampilkan tabel dengan lebar penuh dan tanpa index bawaan
     st.dataframe(
-        styled_df, 
+        df_display, 
         use_container_width=True, 
         height=680,
         hide_index=True
