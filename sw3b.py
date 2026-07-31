@@ -71,8 +71,8 @@ st.markdown("""
 # --- HEADER SECTION ---
 st.markdown("""
 <div class="dashboard-header">
-    <h1>📊 Strength & Weakness Dashboard</h1>
-    <p>Momentum & Directional Bias Analysis for the Last 12 Hours (3x H4 Blocks)</p>
+    <h1>📊 Assets Strength & Weakness Dashboard</h1>
+    <p>Momentum & Directional Bias Analysis for the Last 12 Hours</p>
 </div>
 """, unsafe_allow_html=True)
 
