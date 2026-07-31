@@ -4,7 +4,7 @@ import pandas as pd
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="3-Block H4 Strength Analyzer",
+    page_title="Assets Strength Analyzer",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -72,7 +72,7 @@ st.markdown("""
 st.markdown("""
 <div class="dashboard-header">
     <h1>📊 Assets Strength & Weakness Dashboard</h1>
-    <p>Momentum & Directional Bias Analysis for the Last 12 Hours</p>
+    <p>Momentum, Directional Bias & 12H Pivot Levels Analysis</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -116,20 +116,54 @@ def clean_pair_name(ticker):
     return ticker.replace("=X", "")
 
 def calculate_3block_metrics(ticker):
-    """Calculates % performance across 3 distinct 4-hour blocks and computes weighted average score."""
+    """Calculates % performance across 3 distinct 4-hour blocks and 12h Pivot/S&R Levels (S1-S3, R1-R3)."""
     try:
         data = yf.download(ticker, period="5d", interval="1h", progress=False)
         
         if len(data) >= 13:
             close = data['Close']
+            high = data['High']
+            low = data['Low']
+
             if isinstance(close, pd.DataFrame):
                 close = close.iloc[:, 0]
+                high = high.iloc[:, 0]
+                low = low.iloc[:, 0]
 
+            # --- DATA HARGA ---
             p_now = close.iloc[-1]
             p_4h = close.iloc[-5]
             p_8h = close.iloc[-9]
             p_12h = close.iloc[-13]
 
+            # --- 12-HOUR HIGH, LOW, CLOSE (UNTUK PIVOT LEVEL) ---
+            last_12h_high = high.iloc[-13:].max()
+            last_12h_low = low.iloc[-13:].min()
+            last_12h_close = p_now
+
+            # Perhitungan Pivot, S1-S3, R1-R3 Standard
+            pivot = (last_12h_high + last_12h_low + last_12h_close) / 3
+            
+            r1 = (2 * pivot) - last_12h_low
+            s1 = (2 * pivot) - last_12h_high
+            
+            r2 = pivot + (last_12h_high - last_12h_low)
+            s2 = pivot - (last_12h_high - last_12h_low)
+            
+            r3 = last_12h_high + 2 * (pivot - last_12h_low)
+            s3 = last_12h_low - 2 * (last_12h_high - pivot)
+
+            # --- ATURAN PRESISI DESIMAL ---
+            pair_clean = clean_pair_name(ticker)
+            
+            if "XAUUSD" in pair_clean or "BTCUSD" in pair_clean or ticker in ["GC=F", "BTC-USD"]:
+                digits = 2
+            elif "JPY" in pair_clean or ticker.endswith("JPY=X"):
+                digits = 3
+            else:
+                digits = 5
+
+            # --- CALCULATE % PERFORMANCE ---
             b1_pct = ((p_now - p_4h) / p_4h) * 100       # Block 1 (0-4h)
             b2_pct = ((p_4h - p_8h) / p_8h) * 100       # Block 2 (4-8h)
             b3_pct = ((p_8h - p_12h) / p_12h) * 100     # Block 3 (8-12h)
@@ -153,9 +187,16 @@ def calculate_3block_metrics(ticker):
                 prediction = "📉 Mild Bearish Bias"
 
             return {
-                "Pair": clean_pair_name(ticker),
+                "Pair": pair_clean,
                 "Status / Projection": prediction,
                 "Avg Score": round(avg_score, 2),
+                "S3": f"{s3:.{digits}f}",
+                "S2": f"{s2:.{digits}f}",
+                "S1": f"{s1:.{digits}f}",
+                "Pivot": f"{pivot:.{digits}f}",
+                "R1": f"{r1:.{digits}f}",
+                "R2": f"{r2:.{digits}f}",
+                "R3": f"{r3:.{digits}f}",
                 "Block 1 (0-4h) %": round(b1_pct, 2),
                 "Block 2 (4-8h) %": round(b2_pct, 2),
                 "Block 3 (8-12h) %": round(b3_pct, 2)
@@ -167,25 +208,17 @@ def calculate_3block_metrics(ticker):
         "Pair": clean_pair_name(ticker),
         "Status / Projection": "N/A Data",
         "Avg Score": 0.0,
-        "Block 1 (0-4h) %": 0.0,
-        "Block 2 (4-8h) %": 0.0,
-        "Block 3 (8-12h) %": 0.0
+        "S3": "-", "S2": "-", "S1": "-", "Pivot": "-", "R1": "-", "R2": "-", "R3": "-",
+        "Block 1 (0-4h) %": 0.0, "Block 2 (4-8h) %": 0.0, "Block 3 (8-12h) %": 0.0
     }
 
 # --- MAIN CONTROLLER ---
 if st.button("🔄 Refresh Data Real-Time") or "results_df" not in st.session_state:
-    with st.spinner("Analyzing 3x H4 Blocks across selected trading pairs..."):
+    with st.spinner("Analyzing 3x H4 Blocks & 12H Pivot Levels across selected pairs..."):
         results = [calculate_3block_metrics(ticker) for ticker in selected_tickers]
         df_raw = pd.DataFrame(results)
         
         if not df_raw.empty:
-            # Explicit Status Order requested:
-            # 1. Strong Bullish Trend
-            # 2. Mild Bullish Bias
-            # 3. Bearish Reversal Potential
-            # 4. Bullish Reversal Potential
-            # 5. Mild Bearish Bias
-            # 6. Strong Bearish Trend
             status_order = [
                 "🚀 Strong Bullish Trend",
                 "📈 Mild Bullish Bias",
@@ -234,38 +267,21 @@ if not df.empty and len(df[df['Status / Projection'] != 'N/A Data']) > 0:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- TABLE STYLING FUNCTION ---
-def style_dataframe(df_in):
-    def highlight_values(val):
-        if isinstance(val, (int, float)):
-            if val > 0:
-                return 'background-color: #dcfce7; color: #166534; font-weight: 600;'
-            elif val < 0:
-                return 'background-color: #fee2e2; color: #991b1b; font-weight: 600;'
-            return 'color: #64748b;'
-        return ''
-
-    numeric_cols = ["Avg Score", "Block 1 (0-4h) %", "Block 2 (4-8h) %", "Block 3 (8-12h) %"]
-    
-    styler = df_in.style
-    if hasattr(styler, "map"):
-        styler = styler.map(highlight_values, subset=numeric_cols)
-    else:
-        styler = styler.applymap(highlight_values, subset=numeric_cols)
-        
-    return styler.format({col: "{:+.2f}%" for col in numeric_cols})
-
 # --- DATA TABLE DISPLAY ---
-st.subheader("📋 Assets Status Summary")
+st.subheader("📋 Assets Status & 12H Pivot Levels")
 
 if not df.empty:
-    # 1. Pilih hanya kolom Pair dan Status / Projection
-    df_display = df[["Pair", "Status / Projection"]].copy()
+    # Select columns to display in dashboard
+    cols_to_display = [
+        "Pair", "Status / Projection", 
+        "S3", "S2", "S1", "Pivot", "R1", "R2", "R3", 
+        "Avg Score"
+    ]
+    df_display = df[cols_to_display].copy()
 
-    # 2. Tambahkan kolom Nomor Urut (#) mulai dari angka 1
+    # Add order index column (#) starting from 1
     df_display.insert(0, "#", range(1, len(df_display) + 1))
 
-    # 3. Tampilkan tabel dengan lebar penuh dan tanpa index bawaan
     st.dataframe(
         df_display, 
         use_container_width=True, 
