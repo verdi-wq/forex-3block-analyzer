@@ -115,25 +115,14 @@ ALL_PAIRS = list(PAIR_MAP.keys())
 # --- SIDEBAR: SETTINGS ---
 st.sidebar.header("⚙️ Setting")
 
-pair_options = ["All"] + ALL_PAIRS
-
-selected_selection = st.sidebar.multiselect(
-    "Select Trading Pair(s):",
-    options=pair_options,
-    default=["All"]
-)
-
 pivot_type = st.sidebar.selectbox(
     "Pivot Level Mode:",
     options=["Standard Pivot Level", "Fibonacci Level"],
     index=0
 )
 
-# LOGIKA SELEKSI "ALL"
-if "All" in selected_selection or not selected_selection:
-    selected_display_pairs = ALL_PAIRS
-else:
-    selected_display_pairs = selected_selection
+# DEFAULT EXECUTION: SELALU PROSES SELURUH PAIR
+selected_display_pairs = ALL_PAIRS
 
 # FIXED BLOCK WEIGHTS (50% Block 1, 30% Block 2, 20% Block 3)
 W_B1_NORM = 0.50
@@ -337,7 +326,7 @@ if not df.empty and len(df[df['Status / Projection'] != 'N/A Data']) > 0:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # --- DATA TABLE DISPLAY ---
-table_title = "📋 Assets Status & Pivot Levels (Standard)" if pivot_type == "Standard Pivot Level" else "📋 Assets Status & Fibonacci Levels (15m Timeframe)"
+table_title = "📋 Assets Status & Pivot Levels" if pivot_type == "Standard Pivot Level" else "📋 Assets Status & Fibonacci Levels"
 st.subheader(table_title)
 
 if not df.empty:
