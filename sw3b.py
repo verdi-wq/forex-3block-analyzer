@@ -115,7 +115,6 @@ ALL_PAIRS = list(PAIR_MAP.keys())
 # --- SIDEBAR: SETTINGS ---
 st.sidebar.header("⚙️ Setting")
 
-# Opsi dropdown dengan "All" di posisi pertama
 pair_options = ["All"] + ALL_PAIRS
 
 selected_selection = st.sidebar.multiselect(
@@ -124,7 +123,13 @@ selected_selection = st.sidebar.multiselect(
     default=["All"]
 )
 
-# LOGIKA SELEKSI "ALL":
+pivot_type = st.sidebar.selectbox(
+    "Pivot Level Mode:",
+    options=["Standard Pivot Level", "Fibonacci Level"],
+    index=0
+)
+
+# LOGIKA SELEKSI "ALL"
 if "All" in selected_selection or not selected_selection:
     selected_display_pairs = ALL_PAIRS
 else:
@@ -136,44 +141,28 @@ W_B2_NORM = 0.30
 W_B3_NORM = 0.20
 
 # --- HELPER FUNCTIONS ---
-def calculate_3block_metrics(pair_label):
-    """Calculates % performance across 3 distinct 4-hour blocks and Pivot/S&R Levels (S1-S3, R1-R3)."""
+def calculate_3block_metrics(pair_label, mode="Standard Pivot Level"):
+    """Calculates % performance across 3 distinct 4-hour blocks and Pivot / Fibonacci Levels."""
     ticker = PAIR_MAP[pair_label]
     try:
-        data = yf.download(ticker, period="5d", interval="1h", progress=False)
+        # Download data 1h untuk performance block
+        data_1h = yf.download(ticker, period="5d", interval="1h", progress=False)
         
-        if len(data) >= 13:
-            close = data['Close']
-            high = data['High']
-            low = data['Low']
+        if len(data_1h) >= 13:
+            close_1h = data_1h['Close']
+            high_1h = data_1h['High']
+            low_1h = data_1h['Low']
 
-            if isinstance(close, pd.DataFrame):
-                close = close.iloc[:, 0]
-                high = high.iloc[:, 0]
-                low = low.iloc[:, 0]
+            if isinstance(close_1h, pd.DataFrame):
+                close_1h = close_1h.iloc[:, 0]
+                high_1h = high_1h.iloc[:, 0]
+                low_1h = low_1h.iloc[:, 0]
 
-            # --- DATA HARGA ---
-            p_now = close.iloc[-1]
-            p_4h = close.iloc[-5]
-            p_8h = close.iloc[-9]
-            p_12h = close.iloc[-13]
-
-            # --- HIGH, LOW, CLOSE (UNTUK PIVOT LEVEL 4 JAM TERAKHIR) ---
-            last_4h_high = high.iloc[-5:].max()
-            last_4h_low = low.iloc[-5:].min()
-            last_4h_close = p_now
-
-            # Perhitungan Pivot, S1-S3, R1-R3 Standard
-            pivot = (last_4h_high + last_4h_low + last_4h_close) / 3
-            
-            r1 = (2 * pivot) - last_4h_low
-            s1 = (2 * pivot) - last_4h_high
-            
-            r2 = pivot + (last_4h_high - last_4h_low)
-            s2 = pivot - (last_4h_high - last_4h_low)
-            
-            r3 = last_4h_high + 2 * (pivot - last_4h_low)
-            s3 = last_4h_low - 2 * (last_4h_high - pivot)
+            # --- DATA HARGA PERFORMANCE ---
+            p_now = close_1h.iloc[-1]
+            p_4h = close_1h.iloc[-5]
+            p_8h = close_1h.iloc[-9]
+            p_12h = close_1h.iloc[-13]
 
             # --- ATURAN PRESISI DESIMAL ---
             if pair_label in ["XAUUSD", "BTCUSD"]:
@@ -190,7 +179,7 @@ def calculate_3block_metrics(pair_label):
 
             avg_score = (b1_pct * W_B1_NORM) + (b2_pct * W_B2_NORM) + (b3_pct * W_B3_NORM)
 
-            # --- SOUGHT HIERARCHY LOGIC ---
+            # --- PROJECTION LOGIC ---
             if b1_pct > 0 and b2_pct > 0 and b3_pct > 0:
                 prediction = "🚀 Strong Bullish Trend"
             elif avg_score > 0 and not (b1_pct < 0 and b2_pct > 0 and b3_pct > 0):
@@ -206,36 +195,96 @@ def calculate_3block_metrics(pair_label):
             else:
                 prediction = "📉 Mild Bearish Bias"
 
-            return {
+            res_dict = {
                 "Pair": pair_label,
                 "Status / Projection": prediction,
                 "Avg Score": round(avg_score, 2),
-                "S3": f"{s3:,.{digits}f}",
-                "S2": f"{s2:,.{digits}f}",
-                "S1": f"{s1:,.{digits}f}",
-                "Pivot": f"{pivot:,.{digits}f}",
-                "R1": f"{r1:,.{digits}f}",
-                "R2": f"{r2:,.{digits}f}",
-                "R3": f"{r3:,.{digits}f}",
                 "Block 1 (0-4h) %": round(b1_pct, 2),
                 "Block 2 (4-8h) %": round(b2_pct, 2),
                 "Block 3 (8-12h) %": round(b3_pct, 2)
             }
+
+            if mode == "Standard Pivot Level":
+                # High, Low, Close (4H)
+                last_4h_high = high_1h.iloc[-5:].max()
+                last_4h_low = low_1h.iloc[-5:].min()
+                last_4h_close = p_now
+
+                pivot = (last_4h_high + last_4h_low + last_4h_close) / 3
+                r1 = (2 * pivot) - last_4h_low
+                s1 = (2 * pivot) - last_4h_high
+                r2 = pivot + (last_4h_high - last_4h_low)
+                s2 = pivot - (last_4h_high - last_4h_low)
+                r3 = last_4h_high + 2 * (pivot - last_4h_low)
+                s3 = last_4h_low - 2 * (last_4h_high - pivot)
+
+                res_dict.update({
+                    "S3": f"{s3:,.{digits}f}",
+                    "S2": f"{s2:,.{digits}f}",
+                    "S1": f"{s1:,.{digits}f}",
+                    "Pivot": f"{pivot:,.{digits}f}",
+                    "R1": f"{r1:,.{digits}f}",
+                    "R2": f"{r2:,.{digits}f}",
+                    "R3": f"{r3:,.{digits}f}"
+                })
+            else:
+                # Mode Fibonacci Level pada TF 15m
+                data_15m = yf.download(ticker, period="3d", interval="15m", progress=False)
+                if not data_15m.empty and len(data_15m) >= 96:
+                    high_15m = data_15m['High']
+                    low_15m = data_15m['Low']
+                    if isinstance(high_15m, pd.DataFrame):
+                        high_15m = high_15m.iloc[:, 0]
+                        low_15m = low_15m.iloc[:, 0]
+                    
+                    # Swing High & Low 15m (96 bar = 24 Jam terakhir TF 15m)
+                    fib_high = high_15m.iloc[-96:].max()
+                    fib_low = low_15m.iloc[-96:].min()
+                    diff = fib_high - fib_low
+
+                    f_0 = fib_low
+                    f_236 = fib_low + (diff * 0.236)
+                    f_382 = fib_low + (diff * 0.382)
+                    f_500 = fib_low + (diff * 0.500)
+                    f_618 = fib_low + (diff * 0.618)
+                    f_786 = fib_low + (diff * 0.786)
+                    f_100 = fib_high
+
+                    res_dict.update({
+                        "0%": f"{f_0:,.{digits}f}",
+                        "23.6%": f"{f_236:,.{digits}f}",
+                        "38.2%": f"{f_382:,.{digits}f}",
+                        "50%": f"{f_500:,.{digits}f}",
+                        "61.8%": f"{f_618:,.{digits}f}",
+                        "78.6%": f"{f_786:,.{digits}f}",
+                        "100%": f"{f_100:,.{digits}f}"
+                    })
+                else:
+                    for k in ["0%", "23.6%", "38.2%", "50%", "61.8%", "78.6%", "100%"]:
+                        res_dict[k] = "-"
+
+            return res_dict
     except Exception:
         pass
 
-    return {
+    fallback_dict = {
         "Pair": pair_label,
         "Status / Projection": "N/A Data",
         "Avg Score": 0.0,
-        "S3": "-", "S2": "-", "S1": "-", "Pivot": "-", "R1": "-", "R2": "-", "R3": "-",
         "Block 1 (0-4h) %": 0.0, "Block 2 (4-8h) %": 0.0, "Block 3 (8-12h) %": 0.0
     }
+    if mode == "Standard Pivot Level":
+        fallback_dict.update({"S3": "-", "S2": "-", "S1": "-", "Pivot": "-", "R1": "-", "R2": "-", "R3": "-"})
+    else:
+        fallback_dict.update({"0%": "-", "23.6%": "-", "38.2%": "-", "50%": "-", "61.8%": "-", "78.6%": "-", "100%": "-"})
+
+    return fallback_dict
 
 # --- MAIN CONTROLLER ---
-if st.button("🔄 Refresh Data Real-Time") or "results_df" not in st.session_state:
+if st.button("🔄 Refresh Data Real-Time") or "results_df" not in st.session_state or st.session_state.get("current_pivot_type") != pivot_type:
+    st.session_state.current_pivot_type = pivot_type
     with st.spinner("Analyzing Strenght, Weakness & Pivot Levels across assets..."):
-        results = [calculate_3block_metrics(pair_label) for pair_label in selected_display_pairs]
+        results = [calculate_3block_metrics(pair_label, pivot_type) for pair_label in selected_display_pairs]
         df_raw = pd.DataFrame(results)
         
         if not df_raw.empty:
@@ -288,13 +337,15 @@ if not df.empty and len(df[df['Status / Projection'] != 'N/A Data']) > 0:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # --- DATA TABLE DISPLAY ---
-st.subheader("📋 Assets Status & Pivot Levels")
+table_title = "📋 Assets Status & Pivot Levels (Standard)" if pivot_type == "Standard Pivot Level" else "📋 Assets Status & Fibonacci Levels (15m Timeframe)"
+st.subheader(table_title)
 
 if not df.empty:
-    cols_to_display = [
-        "Pair", "Status / Projection", 
-        "S3", "S2", "S1", "Pivot", "R1", "R2", "R3"
-    ]
+    if pivot_type == "Standard Pivot Level":
+        cols_to_display = ["Pair", "Status / Projection", "S3", "S2", "S1", "Pivot", "R1", "R2", "R3"]
+    else:
+        cols_to_display = ["Pair", "Status / Projection", "0%", "23.6%", "38.2%", "50%", "61.8%", "78.6%", "100%"]
+
     df_display = df[cols_to_display].copy()
     df_display.insert(0, "#", range(1, len(df_display) + 1))
 
