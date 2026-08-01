@@ -72,51 +72,62 @@ st.markdown("""
 st.markdown("""
 <div class="dashboard-header">
     <h1>📊 Assets Strength & Weakness Dashboard</h1>
-    <p>Momentum, Directional Bias & 4H Pivot Levels Analysis</p>
+    <p>Momentum, Directional Bias & Pivot Levels Analysis</p>
 </div>
 """, unsafe_allow_html=True)
 
+# --- MAPPER TICKER YAHOO FINANCE <-> NAMA STANDAR ---
+PAIR_MAP = {
+    "XAUUSD": "GC=F",
+    "BTCUSD": "BTC-USD",
+    "EURUSD": "EURUSD=X",
+    "GBPUSD": "GBPUSD=X",
+    "AUDUSD": "AUDUSD=X",
+    "NZDUSD": "NZDUSD=X",
+    "USDJPY": "USDJPY=X",
+    "USDCAD": "USDCAD=X",
+    "USDCHF": "USDCHF=X",
+    "EURGBP": "EURGBP=X",
+    "EURAUD": "EURAUD=X",
+    "EURNZD": "EURNZD=X",
+    "EURJPY": "EURJPY=X",
+    "EURCAD": "EURCAD=X",
+    "EURCHF": "EURCHF=X",
+    "GBPAUD": "GBPAUD=X",
+    "GBPNZD": "GBPNZD=X",
+    "GBPJPY": "GBPJPY=X",
+    "GBPCAD": "GBPCAD=X",
+    "GBPCHF": "GBPCHF=X",
+    "AUDNZD": "AUDNZD=X",
+    "AUDJPY": "AUDJPY=X",
+    "AUDCAD": "AUDCAD=X",
+    "AUDCHF": "AUDCHF=X",
+    "NZDJPY": "NZDJPY=X",
+    "NZDCAD": "NZDCAD=X",
+    "NZDCHF": "NZDCHF=X",
+    "CADJPY": "CADJPY=X",
+    "CADCHF": "CADCHF=X",
+    "CHFJPY": "CHFJPY=X"
+}
+
 # --- SIDEBAR: SETTINGS ---
-st.sidebar.header("⚙️ Asset & Block Weighting")
+st.sidebar.header("⚙️ Setting")
 
-TRADING_30_PAIRS = [
-    "GC=F", "BTC-USD",
-    "EURUSD=X", "GBPUSD=X", "AUDUSD=X", "NZDUSD=X", "USDJPY=X", "USDCAD=X", "USDCHF=X",
-    "EURGBP=X", "EURAUD=X", "EURNZD=X", "EURJPY=X", "EURCAD=X", "EURCHF=X",
-    "GBPAUD=X", "GBPNZD=X", "GBPJPY=X", "GBPCAD=X", "GBPCHF=X",
-    "AUDNZD=X", "AUDJPY=X", "AUDCAD=X", "AUDCHF=X",
-    "NZDJPY=X", "NZDCAD=X", "NZDCHF=X",
-    "CADJPY=X", "CADCHF=X", "CHFJPY=X"
-]
-
-selected_tickers = st.sidebar.multiselect(
+selected_display_pairs = st.sidebar.multiselect(
     "Select Trading Pair(s):",
-    options=TRADING_30_PAIRS,
-    default=TRADING_30_PAIRS
+    options=list(PAIR_MAP.keys()),
+    default=list(PAIR_MAP.keys())
 )
 
-st.sidebar.subheader("⚖️ Block Weight Distribution")
-w_b1 = st.sidebar.slider("Block 1 (0-4h ago - Latest) (%)", 0, 100, 50) / 100
-w_b2 = st.sidebar.slider("Block 2 (4-8h ago) (%)", 0, 100, 30) / 100
-w_b3 = st.sidebar.slider("Block 3 (8-12h ago) (%)", 0, 100, 20) / 100
-
-# Normalize weights if total doesn't equal 100%
-total_w = w_b1 + w_b2 + w_b3
-if total_w > 0:
-    w_b1_norm, w_b2_norm, w_b3_norm = w_b1 / total_w, w_b2 / total_w, w_b3 / total_w
-else:
-    w_b1_norm, w_b2_norm, w_b3_norm = 0.5, 0.3, 0.2
+# FIXED BLOCK WEIGHTS (50% Block 1, 30% Block 2, 20% Block 3)
+W_B1_NORM = 0.50
+W_B2_NORM = 0.30
+W_B3_NORM = 0.20
 
 # --- HELPER FUNCTIONS ---
-def clean_pair_name(ticker):
-    if ticker == "GC=F":
-        return "XAUUSD (GOLD)"
-    elif ticker == "BTC-USD":
-        return "BTCUSD"
-    return ticker.replace("=X", "")
-
-def calculate_3block_metrics(ticker):
-    """Calculates % performance across 3 distinct 4-hour blocks and 4H Pivot/S&R Levels (S1-S3, R1-R3)."""
+def calculate_3block_metrics(pair_label):
+    """Calculates % performance across 3 distinct 4-hour blocks and Pivot/S&R Levels (S1-S3, R1-R3)."""
+    ticker = PAIR_MAP[pair_label]
     try:
         data = yf.download(ticker, period="5d", interval="1h", progress=False)
         
@@ -136,12 +147,12 @@ def calculate_3block_metrics(ticker):
             p_8h = close.iloc[-9]
             p_12h = close.iloc[-13]
 
-            # --- 4-HOUR HIGH, LOW, CLOSE (UNTUK PIVOT LEVEL 4 JAM TERAKHIR) ---
+            # --- HIGH, LOW, CLOSE (UNTUK PIVOT LEVEL 4 JAM TERAKHIR) ---
             last_4h_high = high.iloc[-5:].max()
             last_4h_low = low.iloc[-5:].min()
             last_4h_close = p_now
 
-            # Perhitungan Pivot, S1-S3, R1-R3 Standard (Basis H4)
+            # Perhitungan Pivot, S1-S3, R1-R3 Standard
             pivot = (last_4h_high + last_4h_low + last_4h_close) / 3
             
             r1 = (2 * pivot) - last_4h_low
@@ -154,11 +165,9 @@ def calculate_3block_metrics(ticker):
             s3 = last_4h_low - 2 * (last_4h_high - pivot)
 
             # --- ATURAN PRESISI DESIMAL ---
-            pair_clean = clean_pair_name(ticker)
-            
-            if "XAUUSD" in pair_clean or "BTCUSD" in pair_clean or ticker in ["GC=F", "BTC-USD"]:
+            if pair_label in ["XAUUSD", "BTCUSD"]:
                 digits = 2
-            elif "JPY" in pair_clean or ticker.endswith("JPY=X"):
+            elif "JPY" in pair_label:
                 digits = 3
             else:
                 digits = 5
@@ -168,7 +177,7 @@ def calculate_3block_metrics(ticker):
             b2_pct = ((p_4h - p_8h) / p_8h) * 100       # Block 2 (4-8h)
             b3_pct = ((p_8h - p_12h) / p_12h) * 100     # Block 3 (8-12h)
 
-            avg_score = (b1_pct * w_b1_norm) + (b2_pct * w_b2_norm) + (b3_pct * w_b3_norm)
+            avg_score = (b1_pct * W_B1_NORM) + (b2_pct * W_B2_NORM) + (b3_pct * W_B3_NORM)
 
             # --- SOUGHT HIERARCHY LOGIC ---
             if b1_pct > 0 and b2_pct > 0 and b3_pct > 0:
@@ -187,7 +196,7 @@ def calculate_3block_metrics(ticker):
                 prediction = "📉 Mild Bearish Bias"
 
             return {
-                "Pair": pair_clean,
+                "Pair": pair_label,
                 "Status / Projection": prediction,
                 "Avg Score": round(avg_score, 2),
                 "S3": f"{s3:,.{digits}f}",
@@ -205,7 +214,7 @@ def calculate_3block_metrics(ticker):
         pass
 
     return {
-        "Pair": clean_pair_name(ticker),
+        "Pair": pair_label,
         "Status / Projection": "N/A Data",
         "Avg Score": 0.0,
         "S3": "-", "S2": "-", "S1": "-", "Pivot": "-", "R1": "-", "R2": "-", "R3": "-",
@@ -214,8 +223,8 @@ def calculate_3block_metrics(ticker):
 
 # --- MAIN CONTROLLER ---
 if st.button("🔄 Refresh Data Real-Time") or "results_df" not in st.session_state:
-    with st.spinner("Analyzing 3x H4 Blocks & 4H Pivot Levels across selected pairs..."):
-        results = [calculate_3block_metrics(ticker) for ticker in selected_tickers]
+    with st.spinner("Analyzing 3x H4 Blocks & Pivot Levels across selected pairs..."):
+        results = [calculate_3block_metrics(pair_label) for pair_label in selected_display_pairs]
         df_raw = pd.DataFrame(results)
         
         if not df_raw.empty:
@@ -268,7 +277,7 @@ if not df.empty and len(df[df['Status / Projection'] != 'N/A Data']) > 0:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # --- DATA TABLE DISPLAY ---
-st.subheader("📋 Assets Status & 4H Pivot Levels")
+st.subheader("📋 Assets Status & Pivot Levels")
 
 if not df.empty:
     cols_to_display = [
