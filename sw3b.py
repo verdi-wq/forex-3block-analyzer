@@ -125,7 +125,6 @@ selected_selection = st.sidebar.multiselect(
 )
 
 # LOGIKA SELEKSI "ALL":
-# Jika "All" terpilih atau pengguna mengosongkan pilihan, gunakan seluruh daftar pair.
 if "All" in selected_selection or not selected_selection:
     selected_display_pairs = ALL_PAIRS
 else:
@@ -235,7 +234,7 @@ def calculate_3block_metrics(pair_label):
 
 # --- MAIN CONTROLLER ---
 if st.button("🔄 Refresh Data Real-Time") or "results_df" not in st.session_state:
-    with st.spinner("Analyzing 3x H4 Blocks & Pivot Levels across selected pairs..."):
+    with st.spinner("Analyzing Strenght, Weakness & Pivot Levels across assets..."):
         results = [calculate_3block_metrics(pair_label) for pair_label in selected_display_pairs]
         df_raw = pd.DataFrame(results)
         
