@@ -110,14 +110,26 @@ PAIR_MAP = {
     "CHFJPY": "CHFJPY=X"
 }
 
+ALL_PAIRS = list(PAIR_MAP.keys())
+
 # --- SIDEBAR: SETTINGS ---
 st.sidebar.header("⚙️ Setting")
 
-selected_display_pairs = st.sidebar.multiselect(
+# Opsi dropdown dengan "All" di posisi pertama
+pair_options = ["All"] + ALL_PAIRS
+
+selected_selection = st.sidebar.multiselect(
     "Select Trading Pair(s):",
-    options=list(PAIR_MAP.keys()),
-    default=list(PAIR_MAP.keys())
+    options=pair_options,
+    default=["All"]
 )
+
+# LOGIKA SELEKSI "ALL":
+# Jika "All" terpilih atau pengguna mengosongkan pilihan, gunakan seluruh daftar pair.
+if "All" in selected_selection or not selected_selection:
+    selected_display_pairs = ALL_PAIRS
+else:
+    selected_display_pairs = selected_selection
 
 # FIXED BLOCK WEIGHTS (50% Block 1, 30% Block 2, 20% Block 3)
 W_B1_NORM = 0.50
