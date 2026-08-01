@@ -65,11 +65,6 @@ st.markdown("""
         border: none;
         color: white;
     }
-
-    /* Force Table Headers & Cells Alignment */
-    div[data-testid="stDataFrame"] th {
-        text-align: center !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -77,7 +72,7 @@ st.markdown("""
 st.markdown("""
 <div class="dashboard-header">
     <h1>📊 Assets Strength & Weakness Dashboard</h1>
-    <p>Momentum, Directional Bias & 12H Pivot Levels Analysis</p>
+    <p>Momentum, Directional Bias & 4H Pivot Levels Analysis</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -115,13 +110,13 @@ else:
 # --- HELPER FUNCTIONS ---
 def clean_pair_name(ticker):
     if ticker == "GC=F":
-        return "XAUUSD"
+        return "XAUUSD (GOLD)"
     elif ticker == "BTC-USD":
         return "BTCUSD"
     return ticker.replace("=X", "")
 
 def calculate_3block_metrics(ticker):
-    """Calculates % performance across 3 distinct 4-hour blocks and 12h Pivot/S&R Levels (S1-S3, R1-R3)."""
+    """Calculates % performance across 3 distinct 4-hour blocks and 4H Pivot/S&R Levels (S1-S3, R1-R3)."""
     try:
         data = yf.download(ticker, period="5d", interval="1h", progress=False)
         
@@ -141,22 +136,22 @@ def calculate_3block_metrics(ticker):
             p_8h = close.iloc[-9]
             p_12h = close.iloc[-13]
 
-            # --- 12-HOUR HIGH, LOW, CLOSE (UNTUK PIVOT LEVEL) ---
-            last_12h_high = high.iloc[-13:].max()
-            last_12h_low = low.iloc[-13:].min()
-            last_12h_close = p_now
+            # --- 4-HOUR HIGH, LOW, CLOSE (UNTUK PIVOT LEVEL 4 JAM TERAKHIR) ---
+            last_4h_high = high.iloc[-5:].max()
+            last_4h_low = low.iloc[-5:].min()
+            last_4h_close = p_now
 
-            # Perhitungan Pivot, S1-S3, R1-R3 Standard
-            pivot = (last_12h_high + last_12h_low + last_12h_close) / 3
+            # Perhitungan Pivot, S1-S3, R1-R3 Standard (Basis H4)
+            pivot = (last_4h_high + last_4h_low + last_4h_close) / 3
             
-            r1 = (2 * pivot) - last_12h_low
-            s1 = (2 * pivot) - last_12h_high
+            r1 = (2 * pivot) - last_4h_low
+            s1 = (2 * pivot) - last_4h_high
             
-            r2 = pivot + (last_12h_high - last_12h_low)
-            s2 = pivot - (last_12h_high - last_12h_low)
+            r2 = pivot + (last_4h_high - last_4h_low)
+            s2 = pivot - (last_4h_high - last_4h_low)
             
-            r3 = last_12h_high + 2 * (pivot - last_12h_low)
-            s3 = last_12h_low - 2 * (last_12h_high - pivot)
+            r3 = last_4h_high + 2 * (pivot - last_4h_low)
+            s3 = last_4h_low - 2 * (last_4h_high - pivot)
 
             # --- ATURAN PRESISI DESIMAL ---
             pair_clean = clean_pair_name(ticker)
@@ -191,7 +186,6 @@ def calculate_3block_metrics(ticker):
             else:
                 prediction = "📉 Mild Bearish Bias"
 
-            # Format angka dengan pemisah ribuan (,) dan desimal yang terkunci
             return {
                 "Pair": pair_clean,
                 "Status / Projection": prediction,
@@ -220,7 +214,7 @@ def calculate_3block_metrics(ticker):
 
 # --- MAIN CONTROLLER ---
 if st.button("🔄 Refresh Data Real-Time") or "results_df" not in st.session_state:
-    with st.spinner("Analyzing 3x H4 Blocks & 12H Pivot Levels across selected pairs..."):
+    with st.spinner("Analyzing 3x H4 Blocks & 4H Pivot Levels across selected pairs..."):
         results = [calculate_3block_metrics(ticker) for ticker in selected_tickers]
         df_raw = pd.DataFrame(results)
         
@@ -274,36 +268,18 @@ if not df.empty and len(df[df['Status / Projection'] != 'N/A Data']) > 0:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # --- DATA TABLE DISPLAY ---
-st.subheader("📋 Assets Status & 12H Pivot Levels")
+st.subheader("📋 Assets Status & 4H Pivot Levels")
 
 if not df.empty:
-    # 1. Pilih kolom yang ingin ditampilkan (kolom 'Avg Score' dibuang)
     cols_to_display = [
         "Pair", "Status / Projection", 
         "S3", "S2", "S1", "Pivot", "R1", "R2", "R3"
     ]
     df_display = df[cols_to_display].copy()
-
-    # 2. Tambahkan kolom Nomor Urut (#)
     df_display.insert(0, "#", range(1, len(df_display) + 1))
-
-    # 3. Konfigurasi perataan sel & judul kolom via Column Configuration
-    column_config = {
-        "#": st.column_config.Column("#", alignment="center"),
-        "Pair": st.column_config.Column("Pair", alignment="center"),
-        "Status / Projection": st.column_config.Column("Status / Projection", alignment="center"),
-        "S3": st.column_config.Column("S3", alignment="center"),
-        "S2": st.column_config.Column("S2", alignment="center"),
-        "S1": st.column_config.Column("S1", alignment="center"),
-        "Pivot": st.column_config.Column("Pivot", alignment="center"),
-        "R1": st.column_config.Column("R1", alignment="center"),
-        "R2": st.column_config.Column("R2", alignment="center"),
-        "R3": st.column_config.Column("R3", alignment="center"),
-    }
 
     st.dataframe(
         df_display, 
-        column_config=column_config,
         use_container_width=True, 
         height=680,
         hide_index=True
